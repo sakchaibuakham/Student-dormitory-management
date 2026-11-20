@@ -7,7 +7,6 @@ import {
   query,
   where,
   onSnapshot,
-  orderBy,
   serverTimestamp,
   doc,
   runTransaction,
@@ -179,7 +178,7 @@ export default function DormMateApp() {
     return () => unsubUser();
   }, [currentUser?.studentId]);
 
-  // 2. ดึงรายการแจ้งซ่อมของผู้ใช้จาก Firestore แบบ Real-time (ไม่หายเมื่อออกแล้วเข้าใหม่)
+  // 2. ดึงรายการแจ้งซ่อมของผู้ใช้จาก Firestore แบบ Real-time
   useEffect(() => {
     if (!currentUser?.studentId) return;
     const q = query(
@@ -202,7 +201,6 @@ export default function DormMateApp() {
         };
       });
 
-      // เรียงจากใหม่ไปเก่า
       firestoreList.sort((a, b) => b.createdAtMs - a.createdAtMs);
 
       const defaultRepairs = [
@@ -236,7 +234,6 @@ export default function DormMateApp() {
       setMyBookings(list);
     });
 
-    // ดึงประวัติสลิปที่เคยส่ง
     const qPayments = query(
       collection(db, 'payments'),
       where('userId', '==', currentUser.studentId)
@@ -286,7 +283,6 @@ export default function DormMateApp() {
         setLoginError(data.message || 'รหัสนักศึกษาหรือรหัสผ่านไม่ถูกต้อง');
       }
     } catch (err) {
-      // Fallback กรณีทดสอบบน Emulator โดยไม่ได้เปิด Server Port 5000 ให้เช็กจาก Firestore ตรงๆ
       try {
         const userSnap = await getDoc(doc(db, 'users', loginId));
         if (userSnap.exists() && userSnap.data().password === loginPass) {
@@ -341,7 +337,6 @@ export default function DormMateApp() {
         setRegError(data.message || 'เกิดข้อผิดพลาดในการสมัครสมาชิก');
       }
     } catch (err) {
-      // Fallback บันทึกลง Firestore โดยตรงหาก Port 5000 ไม่ได้รันอยู่
       try {
         await setDoc(doc(db, 'users', regId), {
           studentId: regId,
@@ -532,188 +527,176 @@ export default function DormMateApp() {
     }
   };
 
+  const isAuthScreen = ['S01', 'S02', 'S03'].includes(currentScreen);
+
   return (
-    <div className="min-h-screen bg-[#EEF2F6] flex items-center justify-center sm:p-4 font-sans text-slate-900 select-none">
-      <div className="w-full sm:w-[400px] h-screen sm:h-[812px] bg-[#F8FAFC] sm:rounded-[40px] sm:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.15)] sm:border-[8px] sm:border-slate-900 overflow-hidden flex flex-col relative">
-        
-        {/* Dynamic Island / Status Bar */}
-        <div className="hidden sm:flex justify-between items-center px-7 pt-3 pb-1 bg-transparent z-30 text-[11px] font-semibold text-slate-800">
-          <span>19:30</span>
-          <div className="w-24 h-5 bg-slate-900 rounded-full"></div>
-          <div className="flex items-center space-x-1.5">
-            <span>5G</span>
-            <div className="w-5 h-2.5 border border-slate-800 rounded-[3px] p-[1px]">
-              <div className="w-full h-full bg-slate-800 rounded-[1px]"></div>
-            </div>
-          </div>
+    <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans text-slate-900">
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed top-4 right-4 left-4 sm:left-auto sm:w-96 z-50 bg-slate-900/95 backdrop-blur-md text-white px-4 py-3 rounded-2xl shadow-lg flex items-center space-x-2.5 text-xs font-medium">
+          <Icons.CheckCircle />
+          <span>{toast}</span>
         </div>
+      )}
 
-        {/* Toast Notification */}
-        {toast && (
-          <div className="absolute top-12 left-4 right-4 z-50 bg-slate-900/95 backdrop-blur-md text-white px-4 py-3 rounded-2xl shadow-lg flex items-center space-x-2.5 animate-fade-in text-xs font-medium">
-            <Icons.CheckCircle />
-            <span>{toast}</span>
-          </div>
-        )}
-
-        <div className="flex-1 overflow-y-auto no-scrollbar pb-24">
-          
-          {/* S01: เข้าสู่ระบบ */}
-          {currentScreen === 'S01' && (
-            <div className="min-h-full bg-white flex flex-col justify-between p-6">
-              <div>
-                <div className="mt-6 mb-8 flex items-center space-x-3">
-                  <div className="w-11 h-11 bg-[#2A62F0] rounded-2xl flex items-center justify-center text-white shadow-sm">
-                    <Icons.Home active />
-                  </div>
-                  <div>
-                    <span className="text-xl font-bold tracking-tight text-slate-900 block leading-none">DormMate</span>
-                    <span className="text-[11px] text-slate-400 font-medium">Smart Student Living</span>
-                  </div>
+      <div className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 py-6 pb-24">
+        {/* S01: เข้าสู่ระบบ */}
+        {currentScreen === 'S01' && (
+          <div className="max-w-md mx-auto bg-white rounded-3xl border border-slate-200/80 shadow-sm p-6 sm:p-8 flex flex-col justify-between">
+            <div>
+              <div className="mb-7 flex items-center space-x-3">
+                <div className="w-11 h-11 bg-[#2A62F0] rounded-2xl flex items-center justify-center text-white shadow-sm">
+                  <Icons.Home active />
                 </div>
-
-                <h1 className="text-2xl font-bold text-slate-900 mb-1.5">ยินดีต้อนรับกลับมา</h1>
-                <p className="text-sm text-slate-500 mb-6">เข้าสู่ระบบด้วยรหัสนักศึกษาเพื่อจัดการหอพักของคุณ</p>
-
-                {loginError && (
-                  <div className="bg-red-50 text-red-600 text-xs p-3.5 rounded-2xl mb-4 font-medium border border-red-100">
-                    {loginError}
-                  </div>
-                )}
-
-                <form onSubmit={handleLogin} className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">รหัสนักศึกษา</label>
-                    <input
-                      type="text"
-                      placeholder="เช่น 68028531"
-                      value={loginId}
-                      onChange={(e) => setLoginId(e.target.value)}
-                      className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl text-sm focus:bg-white focus:outline-none focus:border-[#2A62F0] transition-colors"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <div className="flex justify-between items-center mb-1.5">
-                      <label className="block text-xs font-semibold text-slate-700">รหัสผ่าน</label>
-                      <button type="button" onClick={() => setCurrentScreen('S03')} className="text-xs font-medium text-[#2A62F0]">
-                        ลืมรหัสผ่าน?
-                      </button>
-                    </div>
-                    <input
-                      type="password"
-                      placeholder="••••••••"
-                      value={loginPass}
-                      onChange={(e) => setLoginPass(e.target.value)}
-                      className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl text-sm focus:bg-white focus:outline-none focus:border-[#2A62F0] transition-colors"
-                      required
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="w-full bg-[#2A62F0] text-white font-semibold py-3.5 rounded-2xl hover:bg-blue-700 active:scale-[0.98] transition-all mt-2 text-sm"
-                  >
-                    {isLoading ? 'กำลังตรวจสอบ...' : 'เข้าสู่ระบบ'}
-                  </button>
-                </form>
+                <div>
+                  <span className="text-xl font-bold tracking-tight text-slate-900 block leading-none">DormMate</span>
+                  <span className="text-[11px] text-slate-400 font-medium">Smart Student Living</span>
+                </div>
               </div>
 
-              <div className="pt-8 pb-2 text-center">
-                <p className="text-xs text-slate-500">
-                  ยังไม่มีบัญชีผู้ใช้งาน?{' '}
-                  <button onClick={() => setCurrentScreen('S02')} className="text-[#2A62F0] font-semibold">
-                    สมัครสมาชิก
-                  </button>
-                </p>
-              </div>
-            </div>
-          )}
+              <h1 className="text-2xl font-bold text-slate-900 mb-1.5">ยินดีต้อนรับกลับมา</h1>
+              <p className="text-sm text-slate-500 mb-6">เข้าสู่ระบบด้วยรหัสนักศึกษาเพื่อจัดการหอพักของคุณ</p>
 
-          {/* S02: สมัครสมาชิก */}
-          {currentScreen === 'S02' && (
-            <div className="min-h-full bg-white p-6">
-              <button onClick={() => setCurrentScreen('S01')} className="w-9 h-9 rounded-full bg-slate-50 flex items-center justify-center text-slate-600 mb-4">
-                <Icons.Back />
-              </button>
-              <h1 className="text-xl font-bold text-slate-900 mb-1">สร้างบัญชีใหม่</h1>
-              <p className="text-xs text-slate-500 mb-5">กรอกข้อมูลนักศึกษาเพื่อลงทะเบียนเข้าใช้งาน</p>
-
-              {regError && (
-                <div className="bg-red-50 text-red-600 text-xs p-3 rounded-2xl mb-4 font-medium border border-red-100">
-                  {regError}
+              {loginError && (
+                <div className="bg-red-50 text-red-600 text-xs p-3.5 rounded-2xl mb-4 font-medium border border-red-100">
+                  {loginError}
                 </div>
               )}
 
-              <form onSubmit={handleRegister} className="space-y-3.5">
+              <form onSubmit={handleLogin} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">รหัสนักศึกษา</label>
-                  <input type="text" placeholder="เช่น 68115600" value={regId} onChange={(e) => setRegId(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200/80 rounded-2xl text-sm focus:bg-white focus:outline-none focus:border-[#2A62F0]" required />
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">รหัสนักศึกษา</label>
+                  <input
+                    type="text"
+                    placeholder="เช่น 68028531"
+                    value={loginId}
+                    onChange={(e) => setLoginId(e.target.value)}
+                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl text-sm focus:bg-white focus:outline-none focus:border-[#2A62F0] transition-colors"
+                    required
+                  />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">ชื่อ - นามสกุล</label>
-                  <input type="text" placeholder="เช่น ศักดิ์ชัย บัวคำ" value={regName} onChange={(e) => setRegName(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200/80 rounded-2xl text-sm focus:bg-white focus:outline-none focus:border-[#2A62F0]" required />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">เบอร์โทรศัพท์</label>
-                  <input type="tel" placeholder="08X-XXX-XXXX" value={regPhone} onChange={(e) => setRegPhone(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200/80 rounded-2xl text-sm focus:bg-white focus:outline-none focus:border-[#2A62F0]" required />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">อีเมล</label>
-                  <input type="email" placeholder="name@student.ac.th" value={regEmail} onChange={(e) => setRegEmail(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200/80 rounded-2xl text-sm focus:bg-white focus:outline-none focus:border-[#2A62F0]" />
-                </div>
-                <div className="grid grid-cols-2 gap-2.5">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">รหัสผ่าน</label>
-                    <input type="password" placeholder="••••" value={regPass} onChange={(e) => setRegPass(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200/80 rounded-2xl text-sm focus:bg-white focus:outline-none focus:border-[#2A62F0]" required />
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-700">รหัสผ่าน</label>
+                    <button type="button" onClick={() => setCurrentScreen('S03')} className="text-xs font-medium text-[#2A62F0]">
+                      ลืมรหัสผ่าน?
+                    </button>
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">ยืนยันรหัสผ่าน</label>
-                    <input type="password" placeholder="••••" value={regConfirmPass} onChange={(e) => setRegConfirmPass(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200/80 rounded-2xl text-sm focus:bg-white focus:outline-none focus:border-[#2A62F0]" required />
-                  </div>
+                  <input
+                    type="password"
+                    placeholder="••••••••"
+                    value={loginPass}
+                    onChange={(e) => setLoginPass(e.target.value)}
+                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl text-sm focus:bg-white focus:outline-none focus:border-[#2A62F0] transition-colors"
+                    required
+                  />
                 </div>
-                <button type="submit" disabled={isLoading} className="w-full bg-[#2A62F0] text-white font-semibold py-3.5 rounded-2xl hover:bg-blue-700 active:scale-[0.98] transition-all mt-3 text-sm">
-                  {isLoading ? 'กำลังบันทึกข้อมูล...' : 'ยืนยันการสมัคร'}
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full bg-[#2A62F0] text-white font-semibold py-3.5 rounded-2xl hover:bg-blue-700 active:scale-[0.98] transition-all mt-2 text-sm"
+                >
+                  {isLoading ? 'กำลังตรวจสอบ...' : 'เข้าสู่ระบบ'}
                 </button>
               </form>
             </div>
-          )}
 
-          {/* S03: ลืมรหัสผ่าน */}
-          {currentScreen === 'S03' && (
-            <div className="min-h-full bg-white p-6">
-              <button onClick={() => setCurrentScreen('S01')} className="w-9 h-9 rounded-full bg-slate-50 flex items-center justify-center text-slate-600 mb-4">
-                <Icons.Back />
-              </button>
-              <h1 className="text-xl font-bold text-slate-900 mb-1">ลืมรหัสผ่าน?</h1>
-              <p className="text-xs text-slate-500 mb-6">กรอกอีเมลที่ลงทะเบียนไว้เพื่อรับรหัสยืนยันตั้งรหัสผ่านใหม่</p>
-              <form onSubmit={(e) => { e.preventDefault(); showToast('ส่งรหัส OTP ไปที่อีเมลของคุณแล้ว'); setCurrentScreen('S01'); }} className="space-y-4">
-                <input type="email" placeholder="example@student.ac.th" className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl text-sm focus:bg-white focus:outline-none focus:border-[#2A62F0]" required />
-                <button type="submit" className="w-full bg-[#2A62F0] text-white font-semibold py-3.5 rounded-2xl text-sm">ส่งรหัสยืนยัน</button>
-              </form>
-            </div>
-          )}
-
-          {/* S04: หน้าหลัก (HOME) */}
-          {currentScreen === 'S04' && (
-            <div className="p-5 space-y-5">
-              <div className="flex justify-between items-center pt-1">
-                <div className="flex items-center space-x-3">
-                  {currentUser?.avatar ? (
-                    <img src={currentUser.avatar} alt="Avatar" className="w-10 h-10 rounded-full object-cover border border-slate-200" />
-                  ) : null}
-                  <div>
-                    <p className="text-xs text-slate-400 font-medium">ยินดีต้อนรับกลับมา</p>
-                    <h1 className="text-lg font-bold text-slate-900 tracking-tight">สวัสดี, {currentUser?.name || 'ศักดิ์ชัย'}</h1>
-                  </div>
-                </div>
-                <button onClick={() => showToast('ไม่มีการแจ้งเตือนใหม่')} className="w-10 h-10 rounded-full bg-white border border-slate-200/70 flex items-center justify-center text-slate-600 relative active:scale-95 transition-transform">
-                  <Icons.Bell />
-                  <span className="w-2 h-2 bg-red-500 rounded-full absolute top-2.5 right-2.5"></span>
+            <div className="pt-7 text-center">
+              <p className="text-xs text-slate-500">
+                ยังไม่มีบัญชีผู้ใช้งาน?{' '}
+                <button onClick={() => setCurrentScreen('S02')} className="text-[#2A62F0] font-semibold">
+                  สมัครสมาชิก
                 </button>
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* S02: สมัครสมาชิก */}
+        {currentScreen === 'S02' && (
+          <div className="max-w-md mx-auto bg-white rounded-3xl border border-slate-200/80 shadow-sm p-6 sm:p-8">
+            <button onClick={() => setCurrentScreen('S01')} className="w-9 h-9 rounded-full bg-slate-50 flex items-center justify-center text-slate-600 mb-4">
+              <Icons.Back />
+            </button>
+            <h1 className="text-xl font-bold text-slate-900 mb-1">สร้างบัญชีใหม่</h1>
+            <p className="text-xs text-slate-500 mb-5">กรอกข้อมูลนักศึกษาเพื่อลงทะเบียนเข้าใช้งาน</p>
+
+            {regError && (
+              <div className="bg-red-50 text-red-600 text-xs p-3 rounded-2xl mb-4 font-medium border border-red-100">
+                {regError}
               </div>
+            )}
 
+            <form onSubmit={handleRegister} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">รหัสนักศึกษา</label>
+                <input type="text" placeholder="เช่น 68115600" value={regId} onChange={(e) => setRegId(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200/80 rounded-2xl text-sm focus:bg-white focus:outline-none focus:border-[#2A62F0]" required />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">ชื่อ - นามสกุล</label>
+                <input type="text" placeholder="เช่น ศักดิ์ชัย บัวคำ" value={regName} onChange={(e) => setRegName(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200/80 rounded-2xl text-sm focus:bg-white focus:outline-none focus:border-[#2A62F0]" required />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">เบอร์โทรศัพท์</label>
+                <input type="tel" placeholder="08X-XXX-XXXX" value={regPhone} onChange={(e) => setRegPhone(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200/80 rounded-2xl text-sm focus:bg-white focus:outline-none focus:border-[#2A62F0]" required />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">อีเมล</label>
+                <input type="email" placeholder="name@student.ac.th" value={regEmail} onChange={(e) => setRegEmail(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200/80 rounded-2xl text-sm focus:bg-white focus:outline-none focus:border-[#2A62F0]" />
+              </div>
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">รหัสผ่าน</label>
+                  <input type="password" placeholder="••••" value={regPass} onChange={(e) => setRegPass(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200/80 rounded-2xl text-sm focus:bg-white focus:outline-none focus:border-[#2A62F0]" required />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">ยืนยันรหัสผ่าน</label>
+                  <input type="password" placeholder="••••" value={regConfirmPass} onChange={(e) => setRegConfirmPass(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200/80 rounded-2xl text-sm focus:bg-white focus:outline-none focus:border-[#2A62F0]" required />
+                </div>
+              </div>
+              <button type="submit" disabled={isLoading} className="w-full bg-[#2A62F0] text-white font-semibold py-3.5 rounded-2xl hover:bg-blue-700 active:scale-[0.98] transition-all mt-3 text-sm">
+                {isLoading ? 'กำลังบันทึกข้อมูล...' : 'ยืนยันการสมัคร'}
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* S03: ลืมรหัสผ่าน */}
+        {currentScreen === 'S03' && (
+          <div className="max-w-md mx-auto bg-white rounded-3xl border border-slate-200/80 shadow-sm p-6 sm:p-8">
+            <button onClick={() => setCurrentScreen('S01')} className="w-9 h-9 rounded-full bg-slate-50 flex items-center justify-center text-slate-600 mb-4">
+              <Icons.Back />
+            </button>
+            <h1 className="text-xl font-bold text-slate-900 mb-1">ลืมรหัสผ่าน?</h1>
+            <p className="text-xs text-slate-500 mb-6">กรอกอีเมลที่ลงทะเบียนไว้เพื่อรับรหัสยืนยันตั้งรหัสผ่านใหม่</p>
+            <form onSubmit={(e) => { e.preventDefault(); showToast('ส่งรหัส OTP ไปที่อีเมลของคุณแล้ว'); setCurrentScreen('S01'); }} className="space-y-4">
+              <input type="email" placeholder="example@student.ac.th" className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl text-sm focus:bg-white focus:outline-none focus:border-[#2A62F0]" required />
+              <button type="submit" className="w-full bg-[#2A62F0] text-white font-semibold py-3.5 rounded-2xl text-sm">ส่งรหัสยืนยัน</button>
+            </form>
+          </div>
+        )}
+
+        {/* S04: หน้าหลัก (HOME) */}
+        {currentScreen === 'S04' && (
+          <div className="space-y-5">
+            <div className="flex justify-between items-center pt-1">
+              <div className="flex items-center space-x-3">
+                {currentUser?.avatar ? (
+                  <img src={currentUser.avatar} alt="Avatar" className="w-10 h-10 rounded-full object-cover border border-slate-200" />
+                ) : null}
+                <div>
+                  <p className="text-xs text-slate-400 font-medium">ยินดีต้อนรับกลับมา</p>
+                  <h1 className="text-lg font-bold text-slate-900 tracking-tight">สวัสดี, {currentUser?.name || 'ศักดิ์ชัย'}</h1>
+                </div>
+              </div>
+              <button onClick={() => showToast('ไม่มีการแจ้งเตือนใหม่')} className="w-10 h-10 rounded-full bg-white border border-slate-200/70 flex items-center justify-center text-slate-600 relative active:scale-95 transition-transform">
+                <Icons.Bell />
+                <span className="w-2 h-2 bg-red-500 rounded-full absolute top-2.5 right-2.5"></span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Hero Card */}
               <div className="bg-[#2A62F0] rounded-[24px] p-5 text-white relative overflow-hidden">
                 <div className="flex justify-between items-center relative z-10">
@@ -724,9 +707,7 @@ export default function DormMateApp() {
                     <h2 className="text-xl font-bold tracking-tight">ห้องเดี่ยว แอร์</h2>
                     <p className="text-xs text-blue-100">อาคาร A · ชั้น 3</p>
                     <div className="pt-2 flex items-center space-x-2">
-                      <span className="bg-emerald-400/20 text-emerald-200 border border-emerald-300/30 text-[10px] px-2.5 py-0.5 rounded-full font-semibold">
-                        อนุมัติแล้ว
-                      </span>
+                      <span className="bg-emerald-400/20 text-emerald-200 text-[10px] px-2 py-0.5 rounded-full font-semibold">เข้าพักแล้ว</span>
                       <span className="text-[11px] text-blue-200">เข้าพัก 1 ต.ค. 69</span>
                     </div>
                   </div>
@@ -743,7 +724,7 @@ export default function DormMateApp() {
               </div>
 
               {/* Alert Strip */}
-              <div className="bg-white p-4 rounded-[20px] border border-slate-200/70 flex justify-between items-center">
+              <div className="bg-white p-5 rounded-[24px] border border-slate-200/70 flex justify-between items-center">
                 <div className="space-y-0.5">
                   <div className="flex items-center space-x-2">
                     <span className="text-xs font-semibold text-slate-800">ค่าเช่า ต.ค. 2569</span>
@@ -751,7 +732,7 @@ export default function DormMateApp() {
                       <span className="bg-amber-50 text-amber-600 text-[10px] px-2 py-0.5 rounded-full font-semibold">รอตรวจสอบ</span>
                     )}
                   </div>
-                  <p className="text-lg font-bold text-slate-900">4,200 <span className="text-xs font-normal text-slate-500">บาท</span></p>
+                  <p className="text-2xl font-bold text-slate-900">4,200 <span className="text-xs font-normal text-slate-500">บาท</span></p>
                   <p className="text-[11px] text-rose-500 font-medium">ครบกำหนด 10 ต.ค. 2569</p>
                 </div>
                 <button
@@ -761,41 +742,43 @@ export default function DormMateApp() {
                   {billStatus === 'unpaid' ? 'ชำระเลย' : 'ดูรายการ'}
                 </button>
               </div>
+            </div>
 
-              {/* Quick Actions */}
-              <div>
-                <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2.5 px-1">เมนูลัด</h3>
-                <div className="grid grid-cols-4 gap-2.5">
-                  <button onClick={() => setCurrentScreen('S05')} className="bg-white p-3 rounded-[20px] border border-slate-200/70 flex flex-col items-center justify-center space-y-1.5 active:scale-95 transition-transform">
-                    <div className="w-10 h-10 rounded-2xl bg-blue-50 text-[#2A62F0] flex items-center justify-center">
-                      <Icons.Door />
-                    </div>
-                    <span className="text-[11px] font-semibold text-slate-700">จองห้อง</span>
-                  </button>
+            {/* Quick Actions */}
+            <div>
+              <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2.5 px-1">เมนูลัด</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <button onClick={() => setCurrentScreen('S05')} className="bg-white p-3.5 rounded-[20px] border border-slate-200/70 flex flex-col items-center justify-center space-y-1.5 active:scale-95 transition-transform">
+                  <div className="w-10 h-10 rounded-2xl bg-blue-50 text-[#2A62F0] flex items-center justify-center">
+                    <Icons.Door />
+                  </div>
+                  <span className="text-xs font-semibold text-slate-700">จองห้อง</span>
+                </button>
 
-                  <button onClick={() => setCurrentScreen('S08')} className="bg-white p-3 rounded-[20px] border border-slate-200/70 flex flex-col items-center justify-center space-y-1.5 active:scale-95 transition-transform">
-                    <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                      <Icons.Wallet />
-                    </div>
-                    <span className="text-[11px] font-semibold text-slate-700">ชำระเงิน</span>
-                  </button>
+                <button onClick={() => setCurrentScreen('S08')} className="bg-white p-3.5 rounded-[20px] border border-slate-200/70 flex flex-col items-center justify-center space-y-1.5 active:scale-95 transition-transform">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                    <Icons.Wallet />
+                  </div>
+                  <span className="text-xs font-semibold text-slate-700">ชำระเงิน</span>
+                </button>
 
-                  <button onClick={() => setCurrentScreen('S10')} className="bg-white p-3 rounded-[20px] border border-slate-200/70 flex flex-col items-center justify-center space-y-1.5 active:scale-95 transition-transform">
-                    <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
-                      <Icons.Wrench />
-                    </div>
-                    <span className="text-[11px] font-semibold text-slate-700">แจ้งซ่อม</span>
-                  </button>
+                <button onClick={() => setCurrentScreen('S10')} className="bg-white p-3.5 rounded-[20px] border border-slate-200/70 flex flex-col items-center justify-center space-y-1.5 active:scale-95 transition-transform">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                    <Icons.Wrench />
+                  </div>
+                  <span className="text-xs font-semibold text-slate-700">แจ้งซ่อม</span>
+                </button>
 
-                  <button onClick={() => setCurrentScreen('S13')} className="bg-white p-3 rounded-[20px] border border-slate-200/70 flex flex-col items-center justify-center space-y-1.5 active:scale-95 transition-transform">
-                    <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                      <Icons.ScanFace />
-                    </div>
-                    <span className="text-[11px] font-semibold text-slate-700">สแกนหน้า</span>
-                  </button>
-                </div>
+                <button onClick={() => setCurrentScreen('S13')} className="bg-white p-3.5 rounded-[20px] border border-slate-200/70 flex flex-col items-center justify-center space-y-1.5 active:scale-95 transition-transform">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                    <Icons.ScanFace />
+                  </div>
+                  <span className="text-xs font-semibold text-slate-700">สแกนหน้า</span>
+                </button>
               </div>
+            </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* งานซ่อมล่าสุด */}
               <div className="bg-white p-4 rounded-[20px] border border-slate-200/70 space-y-3">
                 <div className="flex justify-between items-center">
@@ -841,533 +824,434 @@ export default function DormMateApp() {
                 <Icons.ChevronRight />
               </div>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* S05 & S07: จองห้อง */}
-          {currentScreen === 'S05' && (
-            <div className="p-5 space-y-4">
-              <h1 className="text-xl font-bold text-slate-900">ห้องพัก</h1>
+        {/* S05 & S07: จองห้อง */}
+        {currentScreen === 'S05' && (
+          <div className="space-y-4">
+            <h1 className="text-xl font-bold text-slate-900">ห้องพัก</h1>
 
-              <div className="bg-slate-200/60 p-1 rounded-2xl flex">
-                <button
-                  onClick={() => setRoomTab('search')}
-                  className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${roomTab === 'search' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
-                >
-                  ค้นหาห้องว่าง
-                </button>
-                <button
-                  onClick={() => setRoomTab('bookings')}
-                  className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${roomTab === 'bookings' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
-                >
-                  การจองของฉัน ({myBookings.length + 1})
-                </button>
-              </div>
+            <div className="bg-slate-200/60 p-1 rounded-2xl flex max-w-md">
+              <button
+                onClick={() => setRoomTab('search')}
+                className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${roomTab === 'search' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+              >
+                ค้นหาห้องว่าง
+              </button>
+              <button
+                onClick={() => setRoomTab('bookings')}
+                className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${roomTab === 'bookings' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+              >
+                การจองของฉัน ({myBookings.length + 1})
+              </button>
+            </div>
 
-              {roomTab === 'search' ? (
-                <>
-                  <div className="flex space-x-2 overflow-x-auto no-scrollbar py-1">
-                    {['ทั้งหมด', 'ห้องเดี่ยว พัดลม', 'ห้องเดี่ยว แอร์', 'ห้องคู่ แอร์'].map((type) => (
-                      <button
-                        key={type}
-                        onClick={() => setRoomFilter(type)}
-                        className={`px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${roomFilter === type ? 'bg-[#2A62F0] text-white' : 'bg-white text-slate-600 border border-slate-200/80'}`}
-                      >
-                        {type}
-                      </button>
-                    ))}
-                  </div>
+            {roomTab === 'search' ? (
+              <>
+                <div className="flex space-x-2 overflow-x-auto py-1">
+                  {['ทั้งหมด', 'ห้องเดี่ยว พัดลม', 'ห้องเดี่ยว แอร์', 'ห้องคู่ แอร์'].map((type) => (
+                    <button
+                      key={type}
+                      onClick={() => setRoomFilter(type)}
+                      className={`px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${roomFilter === type ? 'bg-[#2A62F0] text-white' : 'bg-white text-slate-600 border border-slate-200/80'}`}
+                    >
+                      {type}
+                    </button>
+                  ))}
+                </div>
 
-                  <p className="text-xs text-slate-400 font-medium">พบ {filteredRooms.filter(r => r.status === 'ว่าง').length} ห้องว่าง</p>
+                <p className="text-xs text-slate-400 font-medium">พบ {filteredRooms.filter(r => r.status === 'ว่าง').length} ห้องว่าง</p>
 
-                  <div className="space-y-3">
-                    {filteredRooms.map((room) => (
-                      <div
-                        key={room.id}
-                        onClick={() => {
-                          setSelectedRoom(room);
-                          setCurrentScreen('S06');
-                        }}
-                        className="bg-white p-4 rounded-[20px] border border-slate-200/70 flex justify-between items-center cursor-pointer active:scale-[0.99] transition-transform"
-                      >
-                        <div className="space-y-1">
-                          <div className="flex items-center space-x-2">
-                            <span className="font-bold text-base text-slate-900">{room.id}</span>
-                            <span
-                              className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
-                                room.status === 'ว่าง'
-                                  ? 'bg-emerald-50 text-emerald-600'
-                                  : 'bg-rose-50 text-rose-600'
-                              }`}
-                            >
-                              {room.status}
-                            </span>
-                          </div>
-                          <p className="text-xs font-medium text-slate-600">{room.type}</p>
-                          <p className="text-[11px] text-slate-400">{room.floor} · {room.size}</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {filteredRooms.map((room) => (
+                    <div
+                      key={room.id}
+                      onClick={() => {
+                        setSelectedRoom(room);
+                        setCurrentScreen('S06');
+                      }}
+                      className="bg-white p-4 rounded-[20px] border border-slate-200/70 flex justify-between items-center cursor-pointer active:scale-[0.99] transition-transform"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center space-x-2">
+                          <span className="font-bold text-base text-slate-900">{room.id}</span>
+                          <span
+                            className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                              room.status === 'ว่าง'
+                                ? 'bg-emerald-50 text-emerald-600'
+                                : 'bg-rose-50 text-rose-600'
+                            }`}
+                          >
+                            {room.status}
+                          </span>
                         </div>
-                        <div className="text-right">
-                          <p className="text-base font-bold text-[#2A62F0]">{room.price}</p>
-                          <p className="text-[10px] text-slate-400">บาท/เดือน</p>
-                        </div>
+                        <p className="text-xs font-medium text-slate-600">{room.type}</p>
+                        <p className="text-[11px] text-slate-400">{room.floor} · {room.size}</p>
                       </div>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <div className="space-y-3 pt-2">
-                  {/* รายการจองจริงจาก Firestore */}
-                  {myBookings.map((bk) => (
-                    <div key={bk.id} className="bg-white p-4 rounded-[20px] border border-slate-200/70 space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span className="font-mono text-xs font-semibold text-slate-400">{bk.bookingCode}</span>
-                        <span className="bg-emerald-50 text-emerald-600 text-[10px] px-2.5 py-0.5 rounded-full font-semibold">
-                          {bk.status || 'จองสำเร็จ'}
-                        </span>
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-sm text-slate-900">{bk.roomId} · {bk.roomType}</h3>
-                        <p className="text-xs text-slate-500 mt-0.5">วันที่แจ้งเข้าพัก: {bk.moveInDate}</p>
-                      </div>
-                      <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-[11px] text-slate-400">
-                        <span>บันทึกการจองลงระบบเรียบร้อยแล้ว</span>
+                      <div className="text-right">
+                        <p className="text-base font-bold text-[#2A62F0]">{room.price}</p>
+                        <p className="text-[10px] text-slate-400">บาท/เดือน</p>
                       </div>
                     </div>
                   ))}
-
-                  {/* ตัวอย่างรายการเดิม */}
-                  <div className="bg-white p-4 rounded-[20px] border border-slate-200/70 space-y-3">
+                </div>
+              </>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                {myBookings.map((bk) => (
+                  <div key={bk.id} className="bg-white p-4 rounded-[20px] border border-slate-200/70 space-y-3">
                     <div className="flex justify-between items-center">
-                      <span className="font-mono text-xs font-semibold text-slate-400">BK-0022</span>
-                      <span className="bg-amber-50 text-amber-600 text-[10px] px-2.5 py-0.5 rounded-full font-semibold">รออนุมัติ</span>
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-sm text-slate-900">B-105 · ห้องคู่ แอร์</h3>
-                      <p className="text-xs text-slate-500 mt-0.5">วันที่แจ้งเข้าพัก: 1 พ.ย. 2569</p>
-                    </div>
-                    <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-[11px] text-slate-400">
-                      <span>ส่งคำขอแล้ว → รอเจ้าของหอพักตรวจสอบ</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* S06: รายละเอียดห้อง & กดจองจริง */}
-          {currentScreen === 'S06' && selectedRoom && (
-            <div className="min-h-full bg-white flex flex-col justify-between p-5">
-              <div className="space-y-4">
-                <button onClick={() => setCurrentScreen('S05')} className="w-9 h-9 rounded-full bg-slate-50 flex items-center justify-center text-slate-600">
-                  <Icons.Back />
-                </button>
-
-                <div className="bg-blue-50/70 rounded-3xl p-5 flex justify-between items-center border border-blue-100">
-                  <div>
-                    <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-semibold ${selectedRoom.status === 'ว่าง' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                      {selectedRoom.status}
-                    </span>
-                    <h1 className="text-2xl font-bold text-slate-900 mt-1.5">ห้อง {selectedRoom.id}</h1>
-                    <p className="text-xs text-slate-600">{selectedRoom.type} · {selectedRoom.floor} ({selectedRoom.size})</p>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-2xl font-extrabold text-[#2A62F0]">{selectedRoom.price}</span>
-                    <span className="block text-[11px] text-slate-500">บาท/เดือน</span>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-xs font-bold text-slate-800 mb-2">สิ่งอำนวยความสะดวก</h3>
-                  <div className="grid grid-cols-2 gap-2">
-                    {selectedRoom.amenities.map((item: string) => (
-                      <div key={item} className="bg-slate-50 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-700 border border-slate-100">
-                        • {item}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1.5">วันที่ต้องการเข้าพัก</label>
-                  <input
-                    type="date"
-                    value={moveInDate}
-                    onChange={(e) => setMoveInDate(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm"
-                  />
-                </div>
-              </div>
-
-              <button
-                onClick={handleConfirmBooking}
-                disabled={selectedRoom.status !== 'ว่าง' || isBookingSubmitting}
-                className="w-full bg-[#2A62F0] text-white font-semibold py-3.5 rounded-2xl text-sm mt-6 disabled:opacity-50"
-              >
-                {selectedRoom.status !== 'ว่าง'
-                  ? 'ห้องนี้ถูกจองไปแล้ว'
-                  : isBookingSubmitting
-                  ? 'กำลังดำเนินการจอง...'
-                  : 'ยืนยันการจองห้องนี้'}
-              </button>
-            </div>
-          )}
-
-          {/* S08: ชำระเงิน & แนบสลิปรูปภาพ (Base64 -> Firestore) */}
-          {currentScreen === 'S08' && (
-            <div className="p-5 space-y-4">
-              <h1 className="text-xl font-bold text-slate-900">ชำระเงิน & แนบสลิป</h1>
-
-              <div className="bg-slate-200/60 p-1 rounded-2xl flex">
-                <button
-                  onClick={() => setPayTab('due')}
-                  className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${payTab === 'due' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
-                >
-                  รายการค้างชำระ
-                </button>
-                <button
-                  onClick={() => setPayTab('history')}
-                  className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${payTab === 'history' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
-                >
-                  ประวัติการส่งสลิป ({paymentHistory.length})
-                </button>
-              </div>
-
-              {payTab === 'due' ? (
-                <div className="bg-white p-5 rounded-[24px] border border-slate-200/70 space-y-4">
-                  <div className="flex justify-between items-start border-b border-slate-100 pb-3.5">
-                    <div>
-                      <span className="text-xs font-bold text-slate-900">ค่าเช่าประจำเดือน ต.ค. 2569</span>
-                      <p className="text-[11px] text-slate-400 mt-0.5">ห้อง {currentUser?.roomNumber || 'A-312'} · ครบกำหนด 10 ต.ค. 69</p>
-                    </div>
-                    <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-semibold ${billStatus === 'verifying' ? 'bg-amber-50 text-amber-600' : 'bg-rose-50 text-rose-600'}`}>
-                      {billStatus === 'verifying' ? 'รอตรวจสอบ' : 'ค้างชำระ'}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-slate-500">ยอดรวมสุทธิ</span>
-                    <span className="text-2xl font-extrabold text-[#2A62F0]">4,200 <span className="text-xs font-normal text-slate-500">บาท</span></span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setPayMethod('qr')}
-                      className={`py-2.5 rounded-xl text-xs font-semibold border ${payMethod === 'qr' ? 'bg-blue-50 border-[#2A62F0] text-[#2A62F0]' : 'bg-slate-50 border-slate-200 text-slate-600'}`}
-                    >
-                      PromptPay QR
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPayMethod('bank')}
-                      className={`py-2.5 rounded-xl text-xs font-semibold border ${payMethod === 'bank' ? 'bg-blue-50 border-[#2A62F0] text-[#2A62F0]' : 'bg-slate-50 border-slate-200 text-slate-600'}`}
-                    >
-                      โอนผ่านบัญชีธนาคาร
-                    </button>
-                  </div>
-
-                  {payMethod === 'bank' && (
-                    <div className="bg-slate-50 p-3.5 rounded-2xl text-xs space-y-1 border border-slate-100">
-                      <p className="font-semibold text-slate-800">ธนาคารกสิกรไทย (KBank)</p>
-                      <p className="text-slate-600 font-mono">123-4-56789-0 · หอพัก DormMate</p>
-                    </div>
-                  )}
-
-                  {/* ส่วนแนบสลิปรูปภาพ */}
-                  <div className="space-y-2.5 pt-1">
-                    <label className="block text-xs font-bold text-slate-800">แนบสลิปหลักฐานการโอนเงิน</label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleSelectSlip}
-                      className="block w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-[#2A62F0]"
-                    />
-                    {slipPreview && (
-                      <div className="pt-2 flex flex-col items-center">
-                        <img src={slipPreview} alt="Slip Preview" className="w-44 rounded-2xl border border-slate-200 shadow-sm" />
-                      </div>
-                    )}
-                  </div>
-
-                  <button
-                    onClick={handleConfirmSlipUpload}
-                    disabled={!slipBase64 || isUploadingSlip}
-                    className="w-full bg-[#2A62F0] text-white font-semibold py-3.5 rounded-2xl text-sm disabled:opacity-50"
-                  >
-                    {isUploadingSlip ? 'กำลังบันทึกสลิป...' : 'ยืนยันการส่งสลิปชำระเงิน'}
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {paymentHistory.length === 0 ? (
-                    <div className="bg-white p-6 rounded-2xl text-center text-xs text-slate-400 border border-slate-200/70">
-                      ยังไม่มีประวัติการอัปโหลดสลิป
-                    </div>
-                  ) : (
-                    paymentHistory.map((item) => (
-                      <div key={item.id} className="bg-white p-4 rounded-2xl border border-slate-200/70 flex items-center justify-between">
-                        <div className="space-y-1">
-                          <span className="text-xs font-bold text-slate-900">บิลเดือน {item.billMonth}</span>
-                          <p className="text-sm font-extrabold text-[#2A62F0]">{item.amount} บาท</p>
-                          <span className="inline-block bg-amber-50 text-amber-600 text-[10px] px-2 py-0.5 rounded-full font-semibold">
-                            {item.status}
-                          </span>
-                        </div>
-                        {item.slipBase64 && (
-                          <img src={item.slipBase64} alt="Slip" className="w-16 h-20 object-cover rounded-xl border" />
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* S10: แจ้งซ่อม (ดึงและบันทึก Firestore ไม่หายเมื่อล็อกอินใหม่) */}
-          {currentScreen === 'S10' && (
-            <div className="p-5 space-y-4">
-              <div className="flex justify-between items-center">
-                <h1 className="text-xl font-bold text-slate-900">แจ้งซ่อม</h1>
-                <button
-                  onClick={() => setShowRepairForm(!showRepairForm)}
-                  className="bg-[#2A62F0] text-white px-3.5 py-2 rounded-xl text-xs font-semibold"
-                >
-                  {showRepairForm ? 'ปิดฟอร์ม' : '+ แจ้งซ่อมใหม่'}
-                </button>
-              </div>
-
-              {showRepairForm && (
-                <form onSubmit={handleSubmitRepair} className="bg-white p-4 rounded-[22px] border border-slate-200/80 space-y-3 shadow-sm">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">หมวดหมู่อาการเสีย</label>
-                    <select
-                      value={repairCategory}
-                      onChange={(e) => setRepairCategory(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium"
-                    >
-                      <option value="ประปา">ประปา / ท่อน้ำ</option>
-                      <option value="ไฟฟ้า">ไฟฟ้า / หลอดไฟ</option>
-                      <option value="เครื่องปรับอากาศ">เครื่องปรับอากาศ</option>
-                      <option value="เฟอร์นิเจอร์">เฟอร์นิเจอร์ / ประตู</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">รายละเอียดอาการเสีย</label>
-                    <input
-                      type="text"
-                      placeholder="เช่น เสีย / น้ำไม่ไหล"
-                      value={repairDetail}
-                      onChange={(e) => setRepairDetail(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
-                      required
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={isSubmittingRepair}
-                    className="w-full bg-[#2A62F0] text-white py-2.5 rounded-xl text-xs font-semibold"
-                  >
-                    {isSubmittingRepair ? 'กำลังบันทึก...' : 'ส่งเรื่องแจ้งซ่อม'}
-                  </button>
-                </form>
-              )}
-
-              <div className="space-y-3">
-                {repairs.map((rp) => (
-                  <div key={rp.docId || rp.id} className="bg-white p-4 rounded-[20px] border border-slate-200/70 space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="font-mono text-xs text-slate-400 font-semibold">{rp.id}</span>
-                      <span
-                        className={`text-[10px] px-2.5 py-0.5 rounded-full font-semibold ${
-                          rp.status === 'เสร็จสิ้น'
-                            ? 'bg-emerald-50 text-emerald-600'
-                            : 'bg-amber-50 text-amber-600'
-                        }`}
-                      >
-                        {rp.status}
+                      <span className="font-mono text-xs font-semibold text-slate-400">{bk.bookingCode}</span>
+                      <span className="bg-emerald-50 text-emerald-600 text-[10px] px-2.5 py-0.5 rounded-full font-semibold">
+                        {bk.status || 'จองสำเร็จ'}
                       </span>
                     </div>
                     <div>
-                      <h3 className="font-bold text-sm text-slate-900">{rp.title}</h3>
-                      <p className="text-[11px] text-slate-400 mt-0.5">
-                        ห้อง {currentUser?.roomNumber || 'A-312'} · แจ้งเมื่อ {rp.date}
-                      </p>
+                      <h3 className="font-bold text-sm text-slate-900">{bk.roomId} · {bk.roomType}</h3>
+                      <p className="text-xs text-slate-500 mt-0.5">วันที่แจ้งเข้าพัก: {bk.moveInDate}</p>
                     </div>
-                    <div className="grid grid-cols-4 gap-1.5">
-                      {[1, 2, 3, 4].map((stepNum) => (
-                        <div
-                          key={stepNum}
-                          className={`h-1.5 rounded-full ${stepNum <= rp.step ? 'bg-[#2A62F0]' : 'bg-slate-100'}`}
-                        ></div>
-                      ))}
+                    <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-[11px] text-slate-400">
+                      <span>บันทึกการจองลงระบบเรียบร้อยแล้ว</span>
                     </div>
                   </div>
                 ))}
-              </div>
-            </div>
-          )}
 
-          {/* S13: สแกนใบหน้า */}
-          {currentScreen === 'S13' && (
-            <div className="p-5 space-y-5">
-              <div className="flex items-center space-x-3">
-                <button onClick={() => setCurrentScreen('S04')} className="w-9 h-9 rounded-full bg-white border border-slate-200 flex items-center justify-center">
-                  <Icons.Back />
-                </button>
-                <h1 className="text-xl font-bold text-slate-900">ลงทะเบียนใบหน้า</h1>
-              </div>
-
-              <div className="bg-white p-6 rounded-[24px] border border-slate-200/70 flex flex-col items-center text-center space-y-4">
-                <div className="w-40 h-40 rounded-full border-4 border-dashed border-[#2A62F0]/40 flex items-center justify-center bg-blue-50/40 text-[#2A62F0]">
-                  <Icons.ScanFace />
+                <div className="bg-white p-4 rounded-[20px] border border-slate-200/70 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="font-mono text-xs font-semibold text-slate-400">BK-0022</span>
+                    <span className="bg-amber-50 text-amber-600 text-[10px] px-2.5 py-0.5 rounded-full font-semibold">รออนุมัติ</span>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-slate-900">B-105 · ห้องคู่ แอร์</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">วันที่แจ้งเข้าพัก: 1 พ.ย. 2569</p>
+                  </div>
+                  <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-[11px] text-slate-400">
+                    <span>ส่งคำขอแล้ว → รอเจ้าของหอพักตรวจสอบ</span>
+                  </div>
                 </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* S06: รายละเอียดห้อง & กดจองจริง */}
+        {currentScreen === 'S06' && selectedRoom && (
+          <div className="max-w-2xl mx-auto bg-white rounded-3xl border border-slate-200/80 flex flex-col justify-between p-6">
+            <div className="space-y-4">
+              <button onClick={() => setCurrentScreen('S05')} className="w-9 h-9 rounded-full bg-slate-50 flex items-center justify-center text-slate-600">
+                <Icons.Back />
+              </button>
+              <div className="bg-blue-50/70 rounded-3xl p-5 flex justify-between items-center border border-blue-100">
                 <div>
-                  <h3 className="font-bold text-base text-slate-900">
-                    {faceStatus === 'pending' ? 'ส่งข้อมูลใบหน้าเรียบร้อยแล้ว' : 'สแกนใบหน้าเพื่อปลดล็อกประตู'}
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {faceStatus === 'pending'
-                      ? 'ระบบกำลังตรวจสอบข้อมูลใบหน้าของคุณ'
-                      : 'กรุณามองตรงเข้ากล้องในบริเวณที่มีแสงสว่างเพียงพอ'}
-                  </p>
+                  <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-semibold ${selectedRoom.status === 'ว่าง' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                    {selectedRoom.status}
+                  </span>
+                  <h1 className="text-2xl font-bold text-slate-900 mt-1.5">ห้อง {selectedRoom.id}</h1>
+                  <p className="text-xs text-slate-600">{selectedRoom.type} · {selectedRoom.floor} ({selectedRoom.size})</p>
                 </div>
-
-                <label className="flex items-center space-x-2 text-xs text-slate-600">
-                  <input
-                    type="checkbox"
-                    checked={faceConsent}
-                    onChange={(e) => setFaceConsent(e.target.checked)}
-                    className="rounded text-[#2A62F0]"
-                  />
-                  <span>ยินยอมให้ระบบจัดเก็บข้อมูลใบหน้าเพื่อใช้เข้า-ออกหอพัก</span>
-                </label>
-
-                <button
-                  onClick={() => {
-                    if (!faceConsent) {
-                      showToast('กรุณากดยินยอมก่อนเริ่มสแกน');
-                      return;
-                    }
-                    setFaceStatus('pending');
-                    showToast('บันทึกข้อมูลใบหน้าสำเร็จ');
-                  }}
-                  className="w-full bg-[#2A62F0] text-white font-semibold py-3.5 rounded-2xl text-sm"
-                >
-                  {faceStatus === 'pending' ? 'สแกนใหม่อีกครั้ง' : 'เริ่มสแกนใบหน้า'}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* S14: หน้าโปรไฟล์ (แก้ไขข้อมูล + เปลี่ยนรูปโปรไฟล์ได้จริง) */}
-          {currentScreen === 'S14' && (
-            <div className="p-5 space-y-4">
-              <div className="flex justify-between items-center">
-                <h1 className="text-xl font-bold text-slate-900">โปรไฟล์ของฉัน</h1>
-                <button
-                  onClick={() => {
-                    setCurrentUser(null);
-                    setCurrentScreen('S01');
-                    showToast('ออกจากระบบแล้ว');
-                  }}
-                  className="text-xs font-semibold text-rose-500 bg-rose-50 px-3 py-1.5 rounded-xl"
-                >
-                  ออกจากระบบ
-                </button>
+                <div className="text-right">
+                  <span className="text-2xl font-extrabold text-[#2A62F0]">{selectedRoom.price}</span>
+                  <span className="block text-[11px] text-slate-500">บาท/เดือน</span>
+                </div>
               </div>
 
-              <form onSubmit={handleSaveProfile} className="bg-white p-5 rounded-[24px] border border-slate-200/70 space-y-4">
-                <div className="flex flex-col items-center space-y-2">
-                  {editAvatar ? (
-                    <img
-                      src={editAvatar}
-                      alt="Profile Avatar"
-                      className="w-24 h-24 rounded-full object-cover border-2 border-[#2A62F0]/20 shadow-sm"
-                    />
-                  ) : (
-                    <div className="w-24 h-24 rounded-full bg-blue-50 text-[#2A62F0] flex items-center justify-center font-bold text-2xl border border-blue-100">
-                      {(editName || currentUser?.name || 'U').charAt(0)}
+              <div>
+                <h3 className="text-xs font-bold text-slate-800 mb-2">สิ่งอำนวยความสะดวก</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {selectedRoom.amenities.map((item: string) => (
+                    <div key={item} className="bg-slate-50 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-700 border border-slate-100">
+                      • {item}
                     </div>
-                  )}
-                  <label className="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-3.5 py-1.5 rounded-xl transition-colors">
-                    เปลี่ยนรูปโปรไฟล์
-                    <input type="file" accept="image/*" onChange={handleSelectAvatar} className="hidden" />
-                  </label>
-                  <span className="text-[11px] text-slate-400">รหัสนักศึกษา: {currentUser?.studentId}</span>
+                  ))}
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">ชื่อ - นามสกุล</label>
-                  <input
-                    type="text"
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">เบอร์โทรศัพท์</label>
-                  <input
-                    type="tel"
-                    value={editPhone}
-                    onChange={(e) => setEditPhone(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">อีเมล</label>
-                  <input
-                    type="email"
-                    value={editEmail}
-                    onChange={(e) => setEditEmail(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isSavingProfile}
-                  className="w-full bg-[#2A62F0] text-white font-semibold py-3.5 rounded-2xl text-sm"
-                >
-                  {isSavingProfile ? 'กำลังบันทึกข้อมูล...' : 'บันทึกการเปลี่ยนแปลง'}
-                </button>
-              </form>
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1.5">วันที่ต้องการเข้าพัก</label>
+                <input
+                  type="date"
+                  value={moveInDate}
+                  onChange={(e) => setMoveInDate(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm"
+                />
+              </div>
             </div>
-          )}
 
-        </div>
-
-        {/* Bottom Navigation Bar (แสดงเมื่อล็อกอินแล้ว) */}
-        {!['S01', 'S02', 'S03'].includes(currentScreen) && (
-          <div className="absolute bottom-0 left-0 right-0 h-20 bg-white/95 backdrop-blur-md border-t border-slate-200/80 px-4 flex justify-around items-center z-40">
-            <button onClick={() => setCurrentScreen('S04')} className={`flex flex-col items-center space-y-1 ${currentScreen === 'S04' ? 'text-[#2A62F0]' : 'text-slate-400'}`}>
-              <Icons.Home active={currentScreen === 'S04'} />
-              <span className="text-[10px] font-semibold">หน้าหลัก</span>
-            </button>
-            <button onClick={() => setCurrentScreen('S05')} className={`flex flex-col items-center space-y-1 ${['S05', 'S06'].includes(currentScreen) ? 'text-[#2A62F0]' : 'text-slate-400'}`}>
-              <Icons.Door active={['S05', 'S06'].includes(currentScreen)} />
-              <span className="text-[10px] font-semibold">จองห้อง</span>
-            </button>
-            <button onClick={() => setCurrentScreen('S08')} className={`flex flex-col items-center space-y-1 ${currentScreen === 'S08' ? 'text-[#2A62F0]' : 'text-slate-400'}`}>
-              <Icons.Wallet active={currentScreen === 'S08'} />
-              <span className="text-[10px] font-semibold">ชำระเงิน</span>
-            </button>
-            <button onClick={() => setCurrentScreen('S10')} className={`flex flex-col items-center space-y-1 ${currentScreen === 'S10' ? 'text-[#2A62F0]' : 'text-slate-400'}`}>
-              <Icons.Wrench active={currentScreen === 'S10'} />
-              <span className="text-[10px] font-semibold">แจ้งซ่อม</span>
-            </button>
-            <button onClick={() => setCurrentScreen('S14')} className={`flex flex-col items-center space-y-1 ${currentScreen === 'S14' ? 'text-[#2A62F0]' : 'text-slate-400'}`}>
-              <Icons.User active={currentScreen === 'S14'} />
-              <span className="text-[10px] font-semibold">โปรไฟล์</span>
+            <button
+              onClick={handleConfirmBooking}
+              disabled={selectedRoom.status !== 'ว่าง' || isBookingSubmitting}
+              className="w-full bg-[#2A62F0] text-white font-semibold py-3.5 rounded-2xl text-sm mt-6 disabled:opacity-50"
+            >
+              {selectedRoom.status !== 'ว่าง'
+                ? 'ห้องนี้ถูกจองไปแล้ว'
+                : isBookingSubmitting
+                ? 'กำลังดำเนินการจอง...'
+                : 'ยืนยันการจองห้องนี้'}
             </button>
           </div>
         )}
 
+        {/* S08: ชำระเงิน & แนบสลิปรูปภาพ (Base64 -> Firestore) */}
+        {currentScreen === 'S08' && (
+          <div className="max-w-2xl mx-auto space-y-4">
+            <h1 className="text-xl font-bold text-slate-900">ชำระเงิน & แนบสลิป</h1>
+
+            <div className="bg-slate-200/60 p-1 rounded-2xl flex">
+              <button
+                onClick={() => setPayTab('due')}
+                className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${payTab === 'due' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+              >
+                รายการค้างชำระ
+              </button>
+              <button
+                onClick={() => setPayTab('history')}
+                className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${payTab === 'history' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+              >
+                ประวัติการส่งสลิป ({paymentHistory.length})
+              </button>
+            </div>
+
+            {payTab === 'due' ? (
+              <div className="bg-white p-5 rounded-[24px] border border-slate-200/70 space-y-4">
+                <div className="flex justify-between items-start border-b border-slate-100 pb-3.5">
+                  <div>
+                    <span className="text-xs font-bold text-slate-900">ค่าเช่าประจำเดือน ต.ค. 2569</span>
+                    <p className="text-[11px] text-slate-400 mt-0.5">ห้อง {currentUser?.roomNumber || 'A-312'} · ครบกำหนด 10 ต.ค. 69</p>
+                  </div>
+                  <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-semibold ${billStatus === 'verifying' ? 'bg-amber-50 text-amber-600' : 'bg-rose-50 text-rose-600'}`}>
+                    {billStatus === 'verifying' ? 'รอตรวจสอบ' : 'ค้างชำระ'}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-slate-500">ยอดรวมสุทธิ</span>
+                  <span className="text-2xl font-extrabold text-[#2A62F0]">4,200 <span className="text-xs font-normal text-slate-500">บาท</span></span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPayMethod('qr')}
+                    className={`py-2.5 rounded-xl text-xs font-semibold border ${payMethod === 'qr' ? 'bg-blue-50 border-[#2A62F0] text-[#2A62F0]' : 'bg-slate-50 border-slate-200 text-slate-600'}`}
+                  >
+                    PromptPay QR
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPayMethod('bank')}
+                    className={`py-2.5 rounded-xl text-xs font-semibold border ${payMethod === 'bank' ? 'bg-blue-50 border-[#2A62F0] text-[#2A62F0]' : 'bg-slate-50 border-slate-200 text-slate-600'}`}
+                  >
+                    โอนผ่านบัญชีธนาคาร
+                  </button>
+                </div>
+
+                {payMethod === 'bank' && (
+                  <div className="bg-slate-50 p-3.5 rounded-2xl text-xs space-y-1 border border-slate-100">
+                    <p className="font-semibold text-slate-800">ธนาคารกสิกรไทย (KBank)</p>
+                    <p className="text-slate-600 font-mono">123-4-56789-0 · หอพัก DormMate</p>
+                  </div>
+                )}
+
+                <div className="space-y-2.5 pt-1">
+                  <label className="block text-xs font-bold text-slate-800">แนบสลิปหลักฐานการโอนเงิน</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleSelectSlip}
+                    className="block w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-[#2A62F0]"
+                  />
+                  {slipPreview && (
+                    <div className="pt-2 flex flex-col items-center space-y-3">
+                      <img src={slipPreview} alt="Slip preview" className="max-h-60 rounded-2xl border border-slate-200 object-contain" />
+                      <button
+                        type="button"
+                        onClick={handleConfirmSlipUpload}
+                        disabled={isUploadingSlip}
+                        className="w-full bg-[#2A62F0] text-white font-semibold py-3 rounded-2xl text-xs"
+                      >
+                        {isUploadingSlip ? 'กำลังอัปโหลดสลิป...' : 'ยืนยันส่งสลิปชำระเงิน'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {paymentHistory.length === 0 ? (
+                  <div className="bg-white p-6 rounded-2xl border border-slate-200/70 text-center text-xs text-slate-400">
+                    ยังไม่มีประวัติการส่งสลิป
+                  </div>
+                ) : (
+                  paymentHistory.map((item) => (
+                    <div key={item.id} className="bg-white p-4 rounded-2xl border border-slate-200/70 flex justify-between items-center">
+                      <div>
+                        <p className="text-sm font-bold text-slate-900">บิล {item.billMonth || 'ต.ค. 2569'}</p>
+                        <p className="text-xs text-slate-500">ยอด {item.amount || 4200} บาท</p>
+                      </div>
+                      <span className="bg-amber-50 text-amber-600 text-[10px] px-2.5 py-1 rounded-full font-semibold">
+                        {item.status || 'รอตรวจสอบ'}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* S10: แจ้งซ่อม */}
+        {currentScreen === 'S10' && (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h1 className="text-xl font-bold text-slate-900">แจ้งซ่อมบำรุง</h1>
+              <button
+                onClick={() => setShowRepairForm(!showRepairForm)}
+                className="bg-[#2A62F0] text-white px-4 py-2 rounded-xl text-xs font-semibold"
+              >
+                {showRepairForm ? 'ปิดฟอร์ม' : '+ แจ้งซ่อมใหม่'}
+              </button>
+            </div>
+
+            {showRepairForm && (
+              <form onSubmit={handleSubmitRepair} className="bg-white p-4 rounded-2xl border border-slate-200/70 space-y-3 max-w-xl">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">หมวดหมู่</label>
+                  <select
+                    value={repairCategory}
+                    onChange={(e) => setRepairCategory(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                  >
+                    <option value="ประปา">ประปา</option>
+                    <option value="ไฟฟ้า">ไฟฟ้า</option>
+                    <option value="แอร์">แอร์</option>
+                    <option value="เฟอร์นิเจอร์">เฟอร์นิเจอร์</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">รายละเอียดอาการ</label>
+                  <input
+                    type="text"
+                    placeholder="เช่น ปลั๊กไฟห้องนอนหลวม"
+                    value={repairDetail}
+                    onChange={(e) => setRepairDetail(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={isSubmittingRepair}
+                  className="bg-[#2A62F0] text-white px-4 py-2.5 rounded-xl text-xs font-semibold"
+                >
+                  {isSubmittingRepair ? 'กำลังส่ง...' : 'ส่งเรื่องแจ้งซ่อม'}
+                </button>
+              </form>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {repairs.map((rp) => (
+                <div key={rp.id} className="bg-white p-4 rounded-2xl border border-slate-200/70 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="font-mono text-xs text-slate-400">{rp.id} · {rp.date}</span>
+                    <span className="bg-blue-50 text-[#2A62F0] text-[10px] px-2.5 py-0.5 rounded-full font-semibold">
+                      {rp.status}
+                    </span>
+                  </div>
+                  <p className="text-sm font-bold text-slate-900">{rp.title}</p>
+                  <p className="text-xs text-slate-500">ผู้รับผิดชอบ: {rp.tech}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* S13: ระบบสแกนใบหน้า */}
+        {currentScreen === 'S13' && (
+          <div className="max-w-xl mx-auto bg-white p-6 rounded-3xl border border-slate-200/80 space-y-4">
+            <h1 className="text-xl font-bold text-slate-900">ระบบสแกนใบหน้าเข้าหอพัก</h1>
+            <p className="text-xs text-slate-500">ลงทะเบียนใบหน้าเพื่อใช้ผ่านประตูอัตโนมัติของหอพัก</p>
+            <label className="flex items-center space-x-2 text-xs text-slate-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={faceConsent}
+                onChange={(e) => setFaceConsent(e.target.checked)}
+                className="rounded border-slate-300"
+              />
+              <span>ยินยอมให้เก็บข้อมูลใบหน้าเพื่อใช้ยืนยันตัวตนเข้า-ออกหอพัก</span>
+            </label>
+            <button
+              type="button"
+              disabled={!faceConsent}
+              onClick={() => {
+                setFaceStatus('pending');
+                showToast('ส่งคำขอลงทะเบียนใบหน้าแล้ว');
+              }}
+              className="w-full bg-[#2A62F0] text-white font-semibold py-3 rounded-2xl text-sm disabled:opacity-50"
+            >
+              {faceStatus === 'pending' ? 'รอเจ้าหน้าที่ตรวจสอบ' : 'บันทึกคำขอลงทะเบียนใบหน้า'}
+            </button>
+          </div>
+        )}
+
+        {/* S14: โปรไฟล์ */}
+        {currentScreen === 'S14' && (
+          <form onSubmit={handleSaveProfile} className="max-w-xl mx-auto bg-white p-6 rounded-3xl border border-slate-200/80 space-y-4">
+            <h1 className="text-xl font-bold text-slate-900">ข้อมูลส่วนตัว</h1>
+            <div className="flex items-center space-x-4">
+              {editAvatar ? (
+                <img src={editAvatar} alt="Profile" className="w-16 h-16 rounded-full object-cover border border-slate-200" />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+                  <Icons.User />
+                </div>
+              )}
+              <input type="file" accept="image/*" onChange={handleSelectAvatar} className="text-xs text-slate-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">ชื่อ - นามสกุล</label>
+              <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">เบอร์โทรศัพท์</label>
+              <input type="tel" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">อีเมล</label>
+              <input type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+            </div>
+            <button type="submit" disabled={isSavingProfile} className="w-full bg-[#2A62F0] text-white font-semibold py-3 rounded-2xl text-sm">
+              {isSavingProfile ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
+            </button>
+          </form>
+        )}
       </div>
+
+      {/* Bottom Navigation Bar (แสดงเมื่อล็อกอินแล้ว) */}
+      {!isAuthScreen && (
+        <div className="fixed bottom-0 left-0 right-0 h-20 bg-white/95 backdrop-blur-md border-t border-slate-200/80 px-4 flex justify-around items-center z-40">
+          <button onClick={() => setCurrentScreen('S04')} className={`flex flex-col items-center space-y-1 ${currentScreen === 'S04' ? 'text-[#2A62F0]' : 'text-slate-400'}`}>
+            <Icons.Home active={currentScreen === 'S04'} />
+            <span className="text-[10px] font-semibold">หน้าหลัก</span>
+          </button>
+          <button onClick={() => setCurrentScreen('S05')} className={`flex flex-col items-center space-y-1 ${['S05', 'S06'].includes(currentScreen) ? 'text-[#2A62F0]' : 'text-slate-400'}`}>
+            <Icons.Door active={['S05', 'S06'].includes(currentScreen)} />
+            <span className="text-[10px] font-semibold">จองห้อง</span>
+          </button>
+          <button onClick={() => setCurrentScreen('S08')} className={`flex flex-col items-center space-y-1 ${currentScreen === 'S08' ? 'text-[#2A62F0]' : 'text-slate-400'}`}>
+            <Icons.Wallet active={currentScreen === 'S08'} />
+            <span className="text-[10px] font-semibold">ชำระเงิน</span>
+          </button>
+          <button onClick={() => setCurrentScreen('S10')} className={`flex flex-col items-center space-y-1 ${currentScreen === 'S10' ? 'text-[#2A62F0]' : 'text-slate-400'}`}>
+            <Icons.Wrench active={currentScreen === 'S10'} />
+            <span className="text-[10px] font-semibold">แจ้งซ่อม</span>
+          </button>
+          <button onClick={() => setCurrentScreen('S14')} className={`flex flex-col items-center space-y-1 ${currentScreen === 'S14' ? 'text-[#2A62F0]' : 'text-slate-400'}`}>
+            <Icons.User active={currentScreen === 'S14'} />
+            <span className="text-[10px] font-semibold">โปรไฟล์</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
