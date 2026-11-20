@@ -527,6 +527,14 @@ export default function DormMateApp() {
     }
   };
 
+  // --- ฟังก์ชันออกจากระบบ ---
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setLoginPass('');
+    setCurrentScreen('S01');
+    showToast('ออกจากระบบเรียบร้อยแล้ว');
+  };
+
   const isAuthScreen = ['S01', 'S02', 'S03'].includes(currentScreen);
 
   return (
@@ -1196,34 +1204,46 @@ export default function DormMateApp() {
 
         {/* S14: โปรไฟล์ */}
         {currentScreen === 'S14' && (
-          <form onSubmit={handleSaveProfile} className="max-w-xl mx-auto bg-white p-6 rounded-3xl border border-slate-200/80 space-y-4">
-            <h1 className="text-xl font-bold text-slate-900">ข้อมูลส่วนตัว</h1>
-            <div className="flex items-center space-x-4">
-              {editAvatar ? (
-                <img src={editAvatar} alt="Profile" className="w-16 h-16 rounded-full object-cover border border-slate-200" />
-              ) : (
-                <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
-                  <Icons.User />
-                </div>
-              )}
-              <input type="file" accept="image/*" onChange={handleSelectAvatar} className="text-xs text-slate-500" />
+          <div className="max-w-xl mx-auto space-y-4">
+            <form onSubmit={handleSaveProfile} className="bg-white p-6 rounded-3xl border border-slate-200/80 space-y-4">
+              <h1 className="text-xl font-bold text-slate-900">ข้อมูลส่วนตัว</h1>
+              <div className="flex items-center space-x-4">
+                {editAvatar ? (
+                  <img src={editAvatar} alt="Profile" className="w-16 h-16 rounded-full object-cover border border-slate-200" />
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+                    <Icons.User />
+                  </div>
+                )}
+                <input type="file" accept="image/*" onChange={handleSelectAvatar} className="text-xs text-slate-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">ชื่อ - นามสกุล</label>
+                <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">เบอร์โทรศัพท์</label>
+                <input type="tel" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">อีเมล</label>
+                <input type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+              </div>
+              <button type="submit" disabled={isSavingProfile} className="w-full bg-[#2A62F0] text-white font-semibold py-3 rounded-2xl text-sm">
+                {isSavingProfile ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
+              </button>
+            </form>
+
+            <div className="bg-white p-4 rounded-3xl border border-slate-200/80">
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="w-full bg-rose-50 text-rose-600 border border-rose-200/80 font-semibold py-3 rounded-2xl text-sm hover:bg-rose-100 transition-colors"
+              >
+                ออกจากระบบ
+              </button>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">ชื่อ - นามสกุล</label>
-              <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">เบอร์โทรศัพท์</label>
-              <input type="tel" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">อีเมล</label>
-              <input type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
-            </div>
-            <button type="submit" disabled={isSavingProfile} className="w-full bg-[#2A62F0] text-white font-semibold py-3 rounded-2xl text-sm">
-              {isSavingProfile ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
-            </button>
-          </form>
+          </div>
         )}
       </div>
 
