@@ -202,11 +202,16 @@ export default function DormMateApp() {
     { id: 'A-315', type: 'ห้องเดี่ยว แอร์', floor: 'ชั้น 3', size: '20 ตร.ม.', price: '4,200', status: 'ว่าง', amenities: ['เตียง 5 ฟุต', 'เครื่องปรับอากาศ', 'เครื่องทำน้ำอุ่น', 'Wi-Fi'] },
   ];
 
-  // 0. ดึงประวัติการสแกนหน้าเข้า-ออกแบบ Real-time จากคอลเลกชัน access_logs
+// 0. ดึงประวัติการสแกนหน้าเข้า-ออกแบบ Real-time เฉพาะของนักศึกษาที่ล็อกอินอยู่
   useEffect(() => {
+    if (!currentUser?.studentId) {
+      setAccessLogs([]);
+      return;
+    }
+
     const q = query(
       collection(db, 'access_logs'),
-      orderBy('timestamp', 'desc'),
+      where('studentId', '==', currentUser.studentId),
       limit(50)
     );
 
@@ -228,6 +233,29 @@ export default function DormMateApp() {
             timestamp: data.timestamp ?? null,
           };
         });
+
+        // เรียงจากเวลาล่าสุดไปเก่าสุด
+        list.sort((a, b) => {
+          const getMs = (raw: AccessLogItem['timestamp']) => {
+            if (raw instanceof Timestamp) return raw.toMillis();
+            if (
+              raw &&
+              typeof raw === 'object' &&
+              'seconds' in raw &&
+              typeof raw.seconds === 'number'
+            ) {
+              return raw.seconds * 1000;
+            }
+            if (raw instanceof Date) return raw.getTime();
+            if (typeof raw === 'string' && raw) {
+              const ms = new Date(raw).getTime();
+              return Number.isNaN(ms) ? 0 : ms;
+            }
+            return 0;
+          };
+          return getMs(b.timestamp) - getMs(a.timestamp);
+        });
+
         setAccessLogs(list);
       },
       (error) => {
@@ -236,7 +264,7 @@ export default function DormMateApp() {
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [currentUser?.studentId]);
 
   // 1. ดึงข้อมูลโปรไฟล์ล่าสุดจาก Firestore เมื่อล็อกอิน
   useEffect(() => {
