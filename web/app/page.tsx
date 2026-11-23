@@ -12,8 +12,64 @@ import {
   runTransaction,
   setDoc,
   getDoc,
+  orderBy,
+  limit,
+  Timestamp,
 } from 'firebase/firestore';
 import { compressImageToBase64 } from '@/utils/imageHelper';
+
+type AccessLogItem = {
+  id: string;
+  studentId: string;
+  status: string;
+  direction?: 'IN' | 'OUT';
+  timestamp?:
+    | Timestamp
+    | { seconds: number; nanoseconds?: number }
+    | Date
+    | string
+    | null;
+};
+
+function formatAccessLogDateTime(raw: AccessLogItem['timestamp']): {
+  dateText: string;
+  timeText: string;
+} {
+  let dateObj: Date | null = null;
+
+  if (raw instanceof Timestamp) {
+    dateObj = raw.toDate();
+  } else if (
+    raw &&
+    typeof raw === 'object' &&
+    'seconds' in raw &&
+    typeof raw.seconds === 'number'
+  ) {
+    dateObj = new Date(raw.seconds * 1000);
+  } else if (raw instanceof Date) {
+    dateObj = raw;
+  } else if (typeof raw === 'string' && raw) {
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) dateObj = parsed;
+  }
+
+  if (!dateObj) {
+    return { dateText: '-', timeText: '-' };
+  }
+
+  return {
+    dateText: dateObj.toLocaleDateString('th-TH', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    }),
+    timeText: dateObj.toLocaleTimeString('th-TH', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    }),
+  };
+}
 
 // --- ชุดไอคอนเวกเตอร์สไตล์มินิมอล (SVG) ---
 const Icons = {
@@ -129,9 +185,9 @@ export default function DormMateApp() {
     { id: 'RP-028', title: 'หลอดไฟห้องนอนเสีย', date: '15 ก.ย. 2569', status: 'เสร็จสิ้น', step: 4, tech: 'ช่างวิชัย' }
   ]);
 
-  // --- Face Scan States ---
-  const [faceConsent, setFaceConsent] = useState(false);
-  const [faceStatus, setFaceStatus] = useState<'unregistered' | 'scanning' | 'pending'>('unregistered');
+  // --- Access Logs States ---
+  const [accessLogs, setAccessLogs] = useState<AccessLogItem[]>([]);
+  const [logFilter, setLogFilter] = useState<'ALL' | 'IN' | 'OUT'>('ALL');
 
   // --- Profile Edit States (Firestore + Base64) ---
   const [editName, setEditName] = useState('');
@@ -145,6 +201,42 @@ export default function DormMateApp() {
     { id: 'B-105', type: 'ห้องคู่ แอร์', floor: 'ชั้น 1', size: '28 ตร.ม.', price: '3,000', status: 'ว่าง', amenities: ['เตียง 2 เตียง', 'เครื่องปรับอากาศ', 'ตู้เสื้อผ้า', 'Wi-Fi'] },
     { id: 'A-315', type: 'ห้องเดี่ยว แอร์', floor: 'ชั้น 3', size: '20 ตร.ม.', price: '4,200', status: 'ว่าง', amenities: ['เตียง 5 ฟุต', 'เครื่องปรับอากาศ', 'เครื่องทำน้ำอุ่น', 'Wi-Fi'] },
   ];
+
+  // 0. ดึงประวัติการสแกนหน้าเข้า-ออกแบบ Real-time จากคอลเลกชัน access_logs
+  useEffect(() => {
+    const q = query(
+      collection(db, 'access_logs'),
+      orderBy('timestamp', 'desc'),
+      limit(50)
+    );
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const list: AccessLogItem[] = snapshot.docs.map((docSnap) => {
+          const data = docSnap.data();
+          const rawDir =
+            typeof data.direction === 'string'
+              ? data.direction.toUpperCase()
+              : '';
+          return {
+            id: docSnap.id,
+            studentId: String(data.studentId ?? ''),
+            status: String(data.status ?? ''),
+            direction:
+              rawDir === 'OUT' ? 'OUT' : rawDir === 'IN' ? 'IN' : undefined,
+            timestamp: data.timestamp ?? null,
+          };
+        });
+        setAccessLogs(list);
+      },
+      (error) => {
+        console.error('Error loading access_logs:', error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
 
   // 1. ดึงข้อมูลโปรไฟล์ล่าสุดจาก Firestore เมื่อล็อกอิน
   useEffect(() => {
@@ -262,6 +354,11 @@ export default function DormMateApp() {
     roomFilter === 'ทั้งหมด'
       ? availableRooms
       : availableRooms.filter((r) => r.type === roomFilter);
+
+  const filteredAccessLogs = accessLogs.filter((log) => {
+    if (logFilter === 'ALL') return true;
+    return log.direction === logFilter;
+  });
 
   // --- ฟังก์ชัน Login เชื่อมต่อ Backend ผ่าน IP 192.168.1.101 ---
   const handleLogin = async (e: React.FormEvent) => {
@@ -781,7 +878,7 @@ export default function DormMateApp() {
                   <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
                     <Icons.ScanFace />
                   </div>
-                  <span className="text-xs font-semibold text-slate-700">สแกนหน้า</span>
+                  <span className="text-xs font-semibold text-slate-700">เวลาเข้า-ออก</span>
                 </button>
               </div>
             </div>
@@ -813,20 +910,20 @@ export default function DormMateApp() {
                 )}
               </div>
 
-              {/* สถานะใบหน้า */}
+              {/* ประวัติเวลาเข้า-ออก */}
               <div onClick={() => setCurrentScreen('S13')} className="bg-white p-4 rounded-[20px] border border-slate-200/70 flex justify-between items-center cursor-pointer active:bg-slate-50">
                 <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600">
+                  <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">
                     <Icons.ScanFace />
                   </div>
                   <div>
                     <div className="flex items-center space-x-2">
-                      <span className="text-sm font-semibold text-slate-900">ระบบสแกนใบหน้า</span>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${faceStatus === 'pending' ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-500'}`}>
-                        {faceStatus === 'pending' ? 'รอตรวจสอบ' : 'ยังไม่ลงทะเบียน'}
+                      <span className="text-sm font-semibold text-slate-900">ประวัติเวลาเข้า-ออก</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-emerald-50 text-emerald-600">
+                        อัตโนมัติ
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-400 mt-0.5">ใช้เข้า-ออกประตูหอพักอัตโนมัติ</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">ดูบันทึกวันและเวลาสแกนใบหน้าเข้า-ออกหอพัก</p>
                   </div>
                 </div>
                 <Icons.ChevronRight />
@@ -1174,31 +1271,113 @@ export default function DormMateApp() {
           </div>
         )}
 
-        {/* S13: ระบบสแกนใบหน้า */}
+        {/* S13: หน้าประวัติการบันทึกเวลาวันเข้า-ออก (ไม่มีระบบลงทะเบียนใบหน้า) */}
         {currentScreen === 'S13' && (
-          <div className="max-w-xl mx-auto bg-white p-6 rounded-3xl border border-slate-200/80 space-y-4">
-            <h1 className="text-xl font-bold text-slate-900">ระบบสแกนใบหน้าเข้าหอพัก</h1>
-            <p className="text-xs text-slate-500">ลงทะเบียนใบหน้าเพื่อใช้ผ่านประตูอัตโนมัติของหอพัก</p>
-            <label className="flex items-center space-x-2 text-xs text-slate-700 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={faceConsent}
-                onChange={(e) => setFaceConsent(e.target.checked)}
-                className="rounded border-slate-300"
-              />
-              <span>ยินยอมให้เก็บข้อมูลใบหน้าเพื่อใช้ยืนยันตัวตนเข้า-ออกหอพัก</span>
-            </label>
-            <button
-              type="button"
-              disabled={!faceConsent}
-              onClick={() => {
-                setFaceStatus('pending');
-                showToast('ส่งคำขอลงทะเบียนใบหน้าแล้ว');
-              }}
-              className="w-full bg-[#2A62F0] text-white font-semibold py-3 rounded-2xl text-sm disabled:opacity-50"
-            >
-              {faceStatus === 'pending' ? 'รอเจ้าหน้าที่ตรวจสอบ' : 'บันทึกคำขอลงทะเบียนใบหน้า'}
-            </button>
+          <div className="max-w-xl mx-auto space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setCurrentScreen('S04')}
+                  className="w-9 h-9 rounded-full bg-white border border-slate-200/80 flex items-center justify-center text-slate-600"
+                >
+                  <Icons.Back />
+                </button>
+                <div>
+                  <h1 className="text-xl font-bold text-slate-900">ประวัติเวลาเข้า-ออกหอพัก</h1>
+                  <p className="text-xs text-slate-500">บันทึกวันและเวลาอัตโนมัติจากการสแกนใบหน้าผ่านบอร์ด</p>
+                </div>
+              </div>
+              <span className="bg-emerald-50 text-emerald-700 text-[11px] font-semibold px-3 py-1 rounded-full">
+                {accessLogs.length} รายการ
+              </span>
+            </div>
+
+            {/* ตัวกรองดูทั้งหมด / เฉพาะเข้า / เฉพาะออก */}
+            <div className="bg-slate-200/60 p-1 rounded-2xl flex">
+              <button
+                type="button"
+                onClick={() => setLogFilter('ALL')}
+                className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${
+                  logFilter === 'ALL' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
+                }`}
+              >
+                ทั้งหมด ({accessLogs.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setLogFilter('IN')}
+                className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${
+                  logFilter === 'IN' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'
+                }`}
+              >
+                เข้า ({accessLogs.filter((l) => l.direction === 'IN').length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setLogFilter('OUT')}
+                className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${
+                  logFilter === 'OUT' ? 'bg-white text-amber-700 shadow-sm' : 'text-slate-500'
+                }`}
+              >
+                ออก ({accessLogs.filter((l) => l.direction === 'OUT').length})
+              </button>
+            </div>
+
+            {/* รายการวันและเวลาเข้า-ออกที่บอร์ดส่งขึ้น Firestore */}
+            <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-sm">
+              {filteredAccessLogs.length === 0 ? (
+                <div className="py-10 text-center text-xs text-slate-400">
+                  ยังไม่มีบันทึกเวลาเข้า-ออกในหมวดนี้
+                </div>
+              ) : (
+                <ul className="divide-y divide-slate-100">
+                  {filteredAccessLogs.map((log) => {
+                    const { dateText, timeText } = formatAccessLogDateTime(
+                      log.timestamp
+                    );
+                    const dirLabel =
+                      log.direction === 'IN'
+                        ? 'เข้า'
+                        : log.direction === 'OUT'
+                        ? 'ออก'
+                        : 'บันทึกสแกน';
+
+                    return (
+                      <li
+                        key={log.id}
+                        className="flex items-center justify-between gap-2 py-3 text-xs"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`inline-flex min-w-[46px] justify-center rounded-full px-2.5 py-0.5 font-semibold ${
+                                log.direction === 'OUT'
+                                  ? 'bg-amber-50 text-amber-700 border border-amber-200/60'
+                                  : 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
+                              }`}
+                            >
+                              {dirLabel}
+                            </span>
+                            <span className="font-bold text-slate-900">
+                              รหัสนักศึกษา: {log.studentId || '-'}
+                            </span>
+                          </div>
+                          <p className="text-slate-500">
+                            สถานะ: {log.status || 'success'}
+                          </p>
+                        </div>
+
+                        <div className="text-right font-medium text-slate-700">
+                          <div className="text-sm font-bold text-slate-900">{timeText}</div>
+                          <div className="text-slate-500">{dateText}</div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
           </div>
         )}
 
